@@ -749,6 +749,39 @@ final public class TestIntegration {
     assertEquals(2, client.stats().atomicIncrements());
   }
 
+  /** Increment with TTL. */
+  @Test
+  public void incrementWithTTL() throws Exception {
+    client.setFlushInterval(SLOW_FLUSH);
+    final byte[] table = TestIntegration.table.getBytes();
+    final byte[] key = "cnt".getBytes();
+    final byte[] family = TestIntegration.family.getBytes();
+    final byte[] qual = { 'q' };
+    final DeleteRequest del = new DeleteRequest(table, key, family, qual);
+    del.setBufferable(false);
+    client.delete(del).join();
+    final long amount = 10;
+    final long ttl = 1000L;
+    final ArrayList<KeyValue> kvs = Deferred.group(
+            bufferIncrement(table, key, family, qual, amount, ttl),
+            bufferIncrement(table, key, family, qual, amount, ttl)
+    ).addCallbackDeferring(new Callback<Deferred<ArrayList<KeyValue>>,
+            ArrayList<Long>>() {
+      public Deferred<ArrayList<KeyValue>> call(final ArrayList<Long> incs) {
+        final GetRequest get = new GetRequest(table, key)
+                .family(family).qualifier(qual);
+        return client.get(get);
+      }
+    }).join();
+    assertSizeIs(1, kvs);
+    assertEquals(amount + amount, Bytes.getLong(kvs.get(0).value()));
+    Thread.sleep(ttl);
+    final GetRequest get = new GetRequest(table, key)
+            .family(family).qualifier(qual);
+    ArrayList<KeyValue> kvsAfterTTL = client.get(get).join();
+    assertSizeIs(0, kvsAfterTTL);
+  }
+
   /** Multi-column increment coalescing with values too large to be coalesced. */
   @Test
   public void multiColumnIncrementCoalescingWithAmountsTooBig() throws Exception {
@@ -982,10 +1015,21 @@ final public class TestIntegration {
                                          final byte[] key, final byte[] family,
                                          final byte[] qual, final long value) {
     return
+            client.bufferAtomicIncrement(new AtomicIncrementRequest(table, key,
+                    family, qual,
+                    value));
+  }
+
+  /** Helper method to create an atomic increment request with TTL.  */
+  private Deferred<Long> bufferIncrement(final byte[] table,
+                                         final byte[] key, final byte[] family,
+                                         final byte[] qual, final long value, final long ttl) {
+    return
       client.bufferAtomicIncrement(new AtomicIncrementRequest(table, key,
                                                               family, qual,
-                                                              value));
+                                                              value, ttl));
   }
+
 
   /** Helper method to create an atomic multi-column increment request.  */
   private Deferred<Map<byte[], Long>> bufferMultiColumnIncrement(final byte[] table,

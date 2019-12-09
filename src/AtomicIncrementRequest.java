@@ -28,6 +28,8 @@ package org.hbase.async;
 
 import java.util.ArrayList;
 
+import com.google.protobuf.ByteString;
+import org.hbase.async.generated.HBasePB;
 import org.jboss.netty.buffer.ChannelBuffer;
 
 import org.hbase.async.generated.ClientPB.MutateRequest;
@@ -53,10 +55,13 @@ public final class AtomicIncrementRequest extends HBaseRpc
     'V', 'a', 'l', 'u', 'e'
   };
 
+  private static final String TTL_ATTRIBUTE_NAME = "_ttl";
+
   private final byte[] family;
   private final byte[] qualifier;
   private long amount;
   private boolean durable = true;
+  private long ttl;
 
   /**
    * Constructor.
@@ -79,6 +84,21 @@ public final class AtomicIncrementRequest extends HBaseRpc
     this.family = family;
     this.qualifier = qualifier;
     this.amount = amount;
+  }
+
+  public AtomicIncrementRequest(final byte[] table,
+                                final byte[] key,
+                                final byte[] family,
+                                final byte[] qualifier,
+                                final long amount,
+                                final long ttl) {
+    super(table, key);
+    KeyValue.checkFamily(family);
+    KeyValue.checkQualifier(qualifier);
+    this.family = family;
+    this.qualifier = qualifier;
+    this.amount = amount;
+    this.ttl = ttl;
   }
 
   /**
@@ -118,6 +138,16 @@ public final class AtomicIncrementRequest extends HBaseRpc
          qualifier.getBytes(), amount);
   }
 
+  public AtomicIncrementRequest(final String table,
+                                final String key,
+                                final String family,
+                                final String qualifier,
+                                final long amount,
+                                final long ttl) {
+    this(table.getBytes(), key.getBytes(), family.getBytes(),
+            qualifier.getBytes(), amount, ttl);
+  }
+
   /**
    * Constructor.  This is equivalent to:
    * All strings are assumed to use the platform's default charset.
@@ -141,6 +171,10 @@ public final class AtomicIncrementRequest extends HBaseRpc
    */
   public long getAmount() {
     return amount;
+  }
+
+  public long getTtl() {
+    return ttl;
   }
 
   /**
@@ -233,10 +267,18 @@ public final class AtomicIncrementRequest extends HBaseRpc
       .setFamily(Bytes.wrap(family))
       .addQualifierValue(qualifier)
       .build();
+
+
     final MutationProto.Builder incr = MutationProto.newBuilder()
       .setRow(Bytes.wrap(key))
       .setMutateType(MutationProto.MutationType.INCREMENT)
       .addColumnValue(column);
+    if (ttl > 0) {
+      HBasePB.NameBytesPair.Builder ttlAttribute = HBasePB.NameBytesPair.newBuilder()
+              .setName(TTL_ATTRIBUTE_NAME)
+              .setValue(ByteString.copyFrom(Bytes.fromLong(ttl)));
+      incr.addAttribute(ttlAttribute.build());
+    }
     if (!durable) {
       incr.setDurability(MutationProto.Durability.SKIP_WAL);
     }
