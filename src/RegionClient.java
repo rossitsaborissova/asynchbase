@@ -1497,6 +1497,7 @@ final class RegionClient extends ReplayingDecoder<VoidEnum> {
               HBaseRpc.checkArrayLength(buf, cell_size);
             }
           }
+
           decoded = rpc.deserialize(buf, cell_size);
         }
       } else {  // HBase 0.94 and before.
