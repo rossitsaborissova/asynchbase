@@ -51,6 +51,15 @@ final class BufferedIncrement {
   private final long ttl;
 
   BufferedIncrement(final byte[] table, final byte[] key,
+                    final byte[] family, final byte[] qualifier) {
+    this.table = table;
+    this.key = key;
+    this.family = family;
+    this.qualifier = qualifier;
+    this.ttl = 0L;
+  }
+
+  BufferedIncrement(final byte[] table, final byte[] key,
                     final byte[] family, final byte[] qualifier, final long ttl) {
     this.table = table;
     this.key = key;
