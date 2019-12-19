@@ -55,8 +55,6 @@ public final class AtomicIncrementRequest extends HBaseRpc
     'V', 'a', 'l', 'u', 'e'
   };
 
-  private static final String TTL_ATTRIBUTE_NAME = "_ttl";
-
   private final byte[] family;
   private final byte[] qualifier;
   private long amount;
@@ -90,7 +88,7 @@ public final class AtomicIncrementRequest extends HBaseRpc
    * @param qualifier The column qualifier of the value to increment.
    * @param amount Amount by which to increment the value in HBase.
    * If negative, the value in HBase will be decremented.
-   * @param ttl TTL in milli seconds that will be set to the cell.
+   * @param ttl The TTL in milli seconds that will be set to the cell.
    */
   public AtomicIncrementRequest(final byte[] table,
                                 final byte[] key,
@@ -144,6 +142,17 @@ public final class AtomicIncrementRequest extends HBaseRpc
          qualifier.getBytes(), amount);
   }
 
+  /**
+   * Constructor.
+   * All strings are assumed to use the platform's default charset.
+   * @param table The non-empty name of the table to use.
+   * @param key The row key of the value to increment.
+   * @param family The column family of the value to increment.
+   * @param qualifier The column qualifier of the value to increment.
+   * @param amount Amount by which to increment the value in HBase.
+   * If negative, the value in HBase will be decremented.
+   * @param ttl The TTL in milli seconds that will be set to the cell.
+   */
   public AtomicIncrementRequest(final String table,
                                 final String key,
                                 final String family,
@@ -179,16 +188,27 @@ public final class AtomicIncrementRequest extends HBaseRpc
     return amount;
   }
 
-  public long getTtl() {
-    return ttl;
-  }
-
   /**
    * Changes the amount by which the value is going to be incremented.
    * @param amount The new amount.  If negative, the value will be decremented.
    */
   public void setAmount(final long amount) {
     this.amount = amount;
+  }
+
+  /**
+   * Returns the TTL(time-to-live) in milli seconds that will be set to the cell.
+   */
+  public long getTtl() {
+    return ttl;
+  }
+
+  /**
+   * Sets the TTL (in milli seconds) that will be set to the cell.
+   * @param ttl The TTL in milli seconds. If negative, the value will not be applied.
+   */
+  public void setTtl(long ttl) {
+    this.ttl = ttl;
   }
 
   @Override
