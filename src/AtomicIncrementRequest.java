@@ -28,6 +28,8 @@ package org.hbase.async;
 
 import java.util.ArrayList;
 
+import com.google.protobuf.ByteString;
+import org.hbase.async.generated.HBasePB;
 import org.jboss.netty.buffer.ChannelBuffer;
 
 import org.hbase.async.generated.ClientPB.MutateRequest;
@@ -57,6 +59,7 @@ public final class AtomicIncrementRequest extends HBaseRpc
   private final byte[] qualifier;
   private long amount;
   private boolean durable = true;
+  private long ttl;
 
   /**
    * Constructor.
@@ -73,12 +76,33 @@ public final class AtomicIncrementRequest extends HBaseRpc
                                 final byte[] family,
                                 final byte[] qualifier,
                                 final long amount) {
+    this(table, key, family, qualifier, amount, 0L);
+  }
+
+  /**
+   * Constructor.
+   * <strong>These byte arrays will NOT be copied.</strong>
+   * @param table The non-empty name of the table to use.
+   * @param key The row key of the value to increment.
+   * @param family The column family of the value to increment.
+   * @param qualifier The column qualifier of the value to increment.
+   * @param amount Amount by which to increment the value in HBase.
+   * If negative, the value in HBase will be decremented.
+   * @param ttl The TTL in milli seconds that will be set to the cell.
+   */
+  public AtomicIncrementRequest(final byte[] table,
+                                final byte[] key,
+                                final byte[] family,
+                                final byte[] qualifier,
+                                final long amount,
+                                final long ttl) {
     super(table, key);
     KeyValue.checkFamily(family);
     KeyValue.checkQualifier(qualifier);
     this.family = family;
     this.qualifier = qualifier;
     this.amount = amount;
+    this.ttl = ttl;
   }
 
   /**
@@ -119,6 +143,27 @@ public final class AtomicIncrementRequest extends HBaseRpc
   }
 
   /**
+   * Constructor.
+   * All strings are assumed to use the platform's default charset.
+   * @param table The non-empty name of the table to use.
+   * @param key The row key of the value to increment.
+   * @param family The column family of the value to increment.
+   * @param qualifier The column qualifier of the value to increment.
+   * @param amount Amount by which to increment the value in HBase.
+   * If negative, the value in HBase will be decremented.
+   * @param ttl The TTL in milli seconds that will be set to the cell.
+   */
+  public AtomicIncrementRequest(final String table,
+                                final String key,
+                                final String family,
+                                final String qualifier,
+                                final long amount,
+                                final long ttl) {
+    this(table.getBytes(), key.getBytes(), family.getBytes(),
+            qualifier.getBytes(), amount, ttl);
+  }
+
+  /**
    * Constructor.  This is equivalent to:
    * All strings are assumed to use the platform's default charset.
    * {@link #AtomicIncrementRequest(String, String, String, String, long)
@@ -149,6 +194,21 @@ public final class AtomicIncrementRequest extends HBaseRpc
    */
   public void setAmount(final long amount) {
     this.amount = amount;
+  }
+
+  /**
+   * Returns the TTL(time-to-live) in milli seconds that will be set to the cell.
+   */
+  public long getTtl() {
+    return ttl;
+  }
+
+  /**
+   * Sets the TTL (in milli seconds) that will be set to the cell.
+   * @param ttl The TTL in milli seconds. If negative, the value will not be applied.
+   */
+  public void setTtl(long ttl) {
+    this.ttl = ttl;
   }
 
   @Override
@@ -213,6 +273,7 @@ public final class AtomicIncrementRequest extends HBaseRpc
     size += qualifier.length;  // The qualifier.
     size += 1;  // byte: Type of the 5th parameter.
     size += 8;  // long: Amount.
+    size += 8;  // long: TTL.
     size += 1;  // byte: Type of the 6th parameter.
     size += 1;  // bool: Whether or not to write to the WAL.
     return size;
@@ -233,10 +294,18 @@ public final class AtomicIncrementRequest extends HBaseRpc
       .setFamily(Bytes.wrap(family))
       .addQualifierValue(qualifier)
       .build();
+
+
     final MutationProto.Builder incr = MutationProto.newBuilder()
       .setRow(Bytes.wrap(key))
       .setMutateType(MutationProto.MutationType.INCREMENT)
       .addColumnValue(column);
+    if (ttl > 0) {
+      HBasePB.NameBytesPair.Builder ttlAttribute = HBasePB.NameBytesPair.newBuilder()
+              .setName(TTL_ATTRIBUTE_NAME)
+              .setValue(ByteString.copyFrom(Bytes.fromLong(ttl)));
+      incr.addAttribute(ttlAttribute.build());
+    }
     if (!durable) {
       incr.setDurability(MutationProto.Durability.SKIP_WAL);
     }

@@ -61,7 +61,8 @@ import com.stumbleupon.async.Deferred;
  */
 public abstract class HBaseRpc {
   private static final Logger LOG = LoggerFactory.getLogger(HBaseRpc.class);
-  
+  public static final String TTL_ATTRIBUTE_NAME = "_ttl";
+
   /**
    * An RPC from which you can get a table name.
    * @since 1.1

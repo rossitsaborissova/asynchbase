@@ -48,6 +48,7 @@ final class BufferedIncrement {
   private final byte[] key;
   private final byte[] family;
   private final byte[] qualifier;
+  private final long ttl;
 
   BufferedIncrement(final byte[] table, final byte[] key,
                     final byte[] family, final byte[] qualifier) {
@@ -55,6 +56,16 @@ final class BufferedIncrement {
     this.key = key;
     this.family = family;
     this.qualifier = qualifier;
+    this.ttl = 0L;
+  }
+
+  BufferedIncrement(final byte[] table, final byte[] key,
+                    final byte[] family, final byte[] qualifier, final long ttl) {
+    this.table = table;
+    this.key = key;
+    this.family = family;
+    this.qualifier = qualifier;
+    this.ttl = ttl;
   }
 
   public boolean equals(final Object other) {
@@ -66,7 +77,8 @@ final class BufferedIncrement {
     return Bytes.equals(qualifier, incr.qualifier)
       && Bytes.equals(key, incr.key)
       && Bytes.equals(family, incr.family)
-      && Bytes.equals(table, incr.table);
+      && Bytes.equals(table, incr.table)
+      && ttl == incr.ttl;
   }
 
   public int hashCode() {
@@ -74,7 +86,9 @@ final class BufferedIncrement {
       Arrays.hashCode(table) + 41 * (
         Arrays.hashCode(key) + 41 * (
           Arrays.hashCode(family) + 41 * (
-            Arrays.hashCode(qualifier) + 41
+            Arrays.hashCode(qualifier) + 41 * (
+              Arrays.hashCode(Bytes.fromLong(ttl)) + 41
+             )
           )
         )
       );
@@ -92,6 +106,8 @@ final class BufferedIncrement {
     Bytes.pretty(buf, family);
     buf.append(", qualifier=");
     Bytes.pretty(buf, qualifier);
+    buf.append(", ttl=");
+    buf.append(ttl);
     buf.append(')');
     return buf.toString();
   }
@@ -296,7 +312,7 @@ final class BufferedIncrement {
       final BufferedIncrement incr = entry.getKey();
       final AtomicIncrementRequest req =
         new AtomicIncrementRequest(incr.table, incr.key, incr.family,
-                                   incr.qualifier, delta);
+                                   incr.qualifier, delta, incr.ttl);
       client.atomicIncrement(req, durable).chain(amount.deferred);
     }
 
