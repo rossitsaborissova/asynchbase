@@ -95,6 +95,7 @@ public final class AppendRequest extends BatchableRpc
    */
   private final byte[][] qualifiers;
   private final byte[][] values;
+  private long ttl;
   
   /** Whether or not to return the result of the append request */
   private boolean return_result = false;
@@ -120,7 +121,7 @@ public final class AppendRequest extends BatchableRpc
                     final byte[] qualifier,
                     final byte[] value) {
     this(table, key, family, qualifier, value, KeyValue.TIMESTAMP_NOW, 
-        RowLock.NO_LOCK);
+        RowLock.NO_LOCK, 0L);
   }
 
   /**
@@ -146,7 +147,7 @@ public final class AppendRequest extends BatchableRpc
                     final byte[][] qualifiers,
                     final byte[][] values) {
     this(table, key, family, qualifiers, values, KeyValue.TIMESTAMP_NOW, 
-        RowLock.NO_LOCK, false);
+        RowLock.NO_LOCK, false, 0L);
   }
 
   /**
@@ -165,7 +166,7 @@ public final class AppendRequest extends BatchableRpc
                     final byte[] qualifier,
                     final byte[] value,
                     final long timestamp) {
-    this(table, key, family, qualifier, value, timestamp, RowLock.NO_LOCK);
+    this(table, key, family, qualifier, value, timestamp, RowLock.NO_LOCK, 0L);
   }
 
   /**
@@ -186,7 +187,30 @@ public final class AppendRequest extends BatchableRpc
                     final byte[][] qualifiers,
                     final byte[][] values,
                     final long timestamp) {
-    this(table, key, family, qualifiers, values, timestamp, RowLock.NO_LOCK, false);
+    this(table, key, family, qualifiers, values, timestamp, RowLock.NO_LOCK, false, 0L);
+  }
+
+  /**
+   * Constructor for multiple columns with a specific timestamp.
+   * <strong>These byte arrays will NOT be copied.</strong>
+   * @param table The table to edit.
+   * @param key The key of the row to edit in that table.
+   * @param family The column family to edit in that table.
+   * @param qualifiers The column qualifiers to edit in that family.
+   * @param values The corresponding values to store.
+   * @param timestamp The timestamp to set on this edit.
+   * @param ttl The TTL in milli seconds that will be set to the cell.
+   * @throws IllegalArgumentException if {@code qualifiers.length == 0}
+   * or if {@code qualifiers.length != values.length}
+   */
+  public AppendRequest(final byte[] table,
+                       final byte[] key,
+                       final byte[] family,
+                       final byte[][] qualifiers,
+                       final byte[][] values,
+                       final long timestamp,
+                       final long ttl) {
+    this(table, key, family, qualifiers, values, timestamp, RowLock.NO_LOCK, false, ttl);
   }
 
   /**
@@ -211,7 +235,34 @@ public final class AppendRequest extends BatchableRpc
                     final byte[] qualifier,
                     final byte[] value,
                     final RowLock lock) {
-    this(table, key, family, qualifier, value, KeyValue.TIMESTAMP_NOW, lock.id());
+    this(table, key, family, qualifier, value, KeyValue.TIMESTAMP_NOW, lock.id(), 0L);
+  }
+
+  /**
+   * Constructor using an explicit row lock.
+   * <strong>These byte arrays will NOT be copied.</strong>
+   * <p>
+   * Note: If you want to set your own timestamp, use
+   * {@link #AppendRequest(byte[], byte[], byte[], byte[], byte[], long, RowLock)}
+   * instead.  This constructor will let the RegionServer assign the timestamp
+   * to this write at the time using {@link System#currentTimeMillis} right
+   * before the write is persisted to the WAL.
+   * @param table The table to edit.
+   * @param key The key of the row to edit in that table.
+   * @param family The column family to edit in that table.
+   * @param qualifier The column qualifier to edit in that family.
+   * @param value The value to store.
+   * @param lock An explicit row lock to use with this request.
+   * @param ttl The TTL in milli seconds that will be set to the cell.
+   */
+  public AppendRequest(final byte[] table,
+                       final byte[] key,
+                       final byte[] family,
+                       final byte[] qualifier,
+                       final byte[] value,
+                       final RowLock lock,
+                       final long ttl) {
+    this(table, key, family, qualifier, value, KeyValue.TIMESTAMP_NOW, lock.id(), ttl);
   }
 
   /**
@@ -232,7 +283,30 @@ public final class AppendRequest extends BatchableRpc
                     final byte[] value,
                     final long timestamp,
                     final RowLock lock) {
-    this(table, key, family, qualifier, value, timestamp, lock.id());
+    this(table, key, family, qualifier, value, timestamp, lock.id(), 0L);
+  }
+
+  /**
+   * Constructor using current time and an explicit row lock.
+   * <strong>These byte arrays will NOT be copied.</strong>
+   * @param table The table to edit.
+   * @param key The key of the row to edit in that table.
+   * @param family The column family to edit in that table.
+   * @param qualifier The column qualifier to edit in that family.
+   * @param value The value to store.
+   * @param timestamp The timestamp to set on this edit.
+   * @param lock An explicit row lock to use with this request.
+   * @param ttl The TTL in milli seconds that will be set to the cell.
+   */
+  public AppendRequest(final byte[] table,
+                       final byte[] key,
+                       final byte[] family,
+                       final byte[] qualifier,
+                       final byte[] value,
+                       final long timestamp,
+                       final RowLock lock,
+                       final long ttl) {
+    this(table, key, family, qualifier, value, timestamp, lock.id(), ttl);
   }
 
   /**
@@ -255,7 +329,32 @@ public final class AppendRequest extends BatchableRpc
                     final byte[][] values,
                     final long timestamp,
                     final RowLock lock) {
-    this(table, key, family, qualifiers, values, timestamp, lock.id(), false);
+    this(table, key, family, qualifiers, values, timestamp, lock.id(), false, 0L);
+  }
+
+  /**
+   * Constructor for multiple columns with current time and explicit row lock.
+   * <strong>These byte arrays will NOT be copied.</strong>
+   * @param table The table to edit.
+   * @param key The key of the row to edit in that table.
+   * @param family The column family to edit in that table.
+   * @param qualifiers The column qualifiers to edit in that family.
+   * @param values The corresponding values to store.
+   * @param timestamp The timestamp to set on this edit.
+   * @param lock An explicit row lock to use with this request.
+   * @param ttl The TTL in milli seconds that will be set to the cell.
+   * @throws IllegalArgumentException if {@code qualifiers.length == 0}
+   * or if {@code qualifiers.length != values.length}
+   */
+  public AppendRequest(final byte[] table,
+                       final byte[] key,
+                       final byte[] family,
+                       final byte[][] qualifiers,
+                       final byte[][] values,
+                       final long timestamp,
+                       final RowLock lock,
+                       final long ttl) {
+    this(table, key, family, qualifiers, values, timestamp, lock.id(), false, ttl);
   }
 
   /**
@@ -279,7 +378,33 @@ public final class AppendRequest extends BatchableRpc
                     final String value) {
     this(table.getBytes(), key.getBytes(), family.getBytes(),
          qualifier.getBytes(), value.getBytes(),
-         KeyValue.TIMESTAMP_NOW, RowLock.NO_LOCK);
+         KeyValue.TIMESTAMP_NOW, RowLock.NO_LOCK, 0L);
+  }
+
+  /**
+   * Convenience constructor from strings (higher overhead).
+   * <p>
+   * Note: If you want to set your own timestamp, use
+   * {@link #AppendRequest(byte[], byte[], byte[], byte[], byte[], long)}
+   * instead.  This constructor will let the RegionServer assign the timestamp
+   * to this write at the time using {@link System#currentTimeMillis} right
+   * before the write is persisted to the WAL.
+   * @param table The table to edit.
+   * @param key The key of the row to edit in that table.
+   * @param family The column family to edit in that table.
+   * @param qualifier The column qualifier to edit in that family.
+   * @param value The value to store.
+   * @param ttl The TTL in milli seconds that will be set to the cell.
+   */
+  public AppendRequest(final String table,
+                       final String key,
+                       final String family,
+                       final String qualifier,
+                       final String value,
+                       final long ttl) {
+    this(table.getBytes(), key.getBytes(), family.getBytes(),
+            qualifier.getBytes(), value.getBytes(),
+            KeyValue.TIMESTAMP_NOW, RowLock.NO_LOCK, ttl);
   }
 
   /**
@@ -305,7 +430,35 @@ public final class AppendRequest extends BatchableRpc
                     final RowLock lock) {
     this(table.getBytes(), key.getBytes(), family.getBytes(),
          qualifier.getBytes(), value.getBytes(),
-         KeyValue.TIMESTAMP_NOW, lock.id());
+         KeyValue.TIMESTAMP_NOW, lock.id(), 0L);
+  }
+
+  /**
+   * Convenience constructor with explicit row lock (higher overhead).
+   * <p>
+   * Note: If you want to set your own timestamp, use
+   * {@link #AppendRequest(byte[], byte[], byte[], byte[], byte[], long, RowLock)}
+   * instead.  This constructor will let the RegionServer assign the timestamp
+   * to this write at the time using {@link System#currentTimeMillis} right
+   * before the write is persisted to the WAL.
+   * @param table The table to edit.
+   * @param key The key of the row to edit in that table.
+   * @param family The column family to edit in that table.
+   * @param qualifier The column qualifier to edit in that family.
+   * @param value The value to store.
+   * @param lock An explicit row lock to use with this request.
+   * @param ttl The TTL in milli seconds that will be set to the cell.
+   */
+  public AppendRequest(final String table,
+                       final String key,
+                       final String family,
+                       final String qualifier,
+                       final String value,
+                       final RowLock lock,
+                       final long ttl) {
+    this(table.getBytes(), key.getBytes(), family.getBytes(),
+            qualifier.getBytes(), value.getBytes(),
+            KeyValue.TIMESTAMP_NOW, lock.id(), ttl);
   }
 
   /**
@@ -315,7 +468,7 @@ public final class AppendRequest extends BatchableRpc
    */
   public AppendRequest(final byte[] table,
                     final KeyValue kv) {
-    this(table, kv, RowLock.NO_LOCK);
+    this(table, kv, RowLock.NO_LOCK, 0L);
   }
 
   /**
@@ -327,16 +480,32 @@ public final class AppendRequest extends BatchableRpc
   public AppendRequest(final byte[] table,
                     final KeyValue kv,
                     final RowLock lock) {
-    this(table, kv, lock.id());
+    this(table, kv, lock.id(), 0L);
+  }
+
+  /**
+   * Constructor from a {@link KeyValue} with an explicit row lock.
+   * @param table The table to edit.
+   * @param kv The {@link KeyValue} to store.
+   * @param lock An explicit row lock to use with this request.
+   * @param ttl The TTL in milli seconds that will be set to the cell.
+   */
+  public AppendRequest(final byte[] table,
+                       final KeyValue kv,
+                       final RowLock lock,
+                       final long ttl) {
+    this(table, kv, lock.id(), ttl);
   }
 
   /** Private constructor.  */
   private AppendRequest(final byte[] table,
                      final KeyValue kv,
-                     final long lockid) {
+                     final long lockid,
+                     final long ttl) {
     super(table, kv.key(), kv.family(), kv.timestamp(), lockid);
     this.qualifiers = new byte[][] { kv.qualifier() };
     this.values = new byte[][] { kv.value() };
+    this.ttl = ttl;
   }
 
   /** Private constructor.  */
@@ -346,9 +515,10 @@ public final class AppendRequest extends BatchableRpc
                      final byte[] qualifier,
                      final byte[] value,
                      final long timestamp,
-                     final long lockid) {
+                     final long lockid,
+                     final long ttl) {
     this(table, key, family, new byte[][] { qualifier }, new byte[][] { value },
-         timestamp, lockid, false);
+         timestamp, lockid, false, ttl);
   }
 
   /** Private constructor.  */
@@ -359,7 +529,8 @@ public final class AppendRequest extends BatchableRpc
                      final byte[][] values,
                      final long timestamp,
                      final long lockid,
-                     final boolean return_result) {
+                     final boolean return_result,
+                     final long ttl) {
     super(table, key, family, timestamp, lockid);
     KeyValue.checkFamily(family);
     
@@ -375,6 +546,7 @@ public final class AppendRequest extends BatchableRpc
     }
     this.qualifiers = qualifiers;
     this.values = values;
+    this.ttl = ttl;
   }
 
   @Override
@@ -434,6 +606,7 @@ public final class AppendRequest extends BatchableRpc
                                        family, qualifiers, values,
                                        ", timestamp=" + timestamp
                                        + ", lockid=" + lockid
+                                       + ", ttl=" + ttl
                                        + ", durable=" + durable
                                        + ", return_result=" + return_result
                                        + ", bufferable=" + super.bufferable);
@@ -528,6 +701,7 @@ public final class AppendRequest extends BatchableRpc
     size += key.length;  // The row key.
     size += 8;  // long: Timestamp.
     size += 8;  // long: Lock ID.
+    size += 8;  // long: TTL
     size += 1;  // bool: Whether or not to write to the WAL.
     size += 4;  // int:  Number of families for which we have edits.
 
@@ -564,6 +738,13 @@ public final class AppendRequest extends BatchableRpc
       .addColumnValue(columns);
     if (!durable) {
       append.setDurability(MutationProto.Durability.SKIP_WAL);
+    }
+
+    if (ttl > 0) {
+      HBasePB.NameBytesPair.Builder ttlAttribute = HBasePB.NameBytesPair.newBuilder()
+              .setName(TTL_ATTRIBUTE_NAME)
+              .setValue(ByteString.copyFrom(Bytes.fromLong(ttl)));
+      append.addAttribute(ttlAttribute.build());
     }
     
     //Set return results flag
@@ -613,7 +794,7 @@ public final class AppendRequest extends BatchableRpc
     writeByteArray(buf, key);  // The row key.
 
     buf.writeLong(timestamp);  // Timestamp.
-
+    buf.writeLong(ttl);       // TTL
     buf.writeLong(lockid);    // Lock ID.
     buf.writeByte(durable ? 0x01 : 0x00);  // Whether or not to use the WAL.
 

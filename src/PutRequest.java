@@ -26,6 +26,9 @@
  */
 package org.hbase.async;
 
+import com.google.protobuf.ByteString;
+import com.sun.rowset.internal.Row;
+import org.hbase.async.generated.HBasePB;
 import org.jboss.netty.buffer.ChannelBuffer;
 
 import org.hbase.async.generated.ClientPB.MutateRequest;
@@ -91,6 +94,7 @@ public final class PutRequest extends BatchableRpc
    */
   private final byte[][] qualifiers;
   private final byte[][] values;
+  private long ttl;
 
   /**
    * Constructor using current time.
@@ -212,6 +216,34 @@ public final class PutRequest extends BatchableRpc
   }
 
   /**
+   * Constructor using an explicit row lock.
+   * <strong>These byte arrays will NOT be copied.</strong>
+   * <p>
+   * Note: If you want to set your own timestamp, use
+   * {@link #PutRequest(byte[], byte[], byte[], byte[], byte[], long, RowLock)}
+   * instead.  This constructor will let the RegionServer assign the timestamp
+   * to this write at the time using {@link System#currentTimeMillis} right
+   * before the write is persisted to the WAL.
+   * @param table The table to edit.
+   * @param key The key of the row to edit in that table.
+   * @param family The column family to edit in that table.
+   * @param qualifier The column qualifier to edit in that family.
+   * @param value The value to store.
+   * @param lock An explicit row lock to use with this request.
+   * @param ttl The TTL in milli seconds that will be set to the cell.
+   */
+  public PutRequest(final byte[] table,
+                    final byte[] key,
+                    final byte[] family,
+                    final byte[] qualifier,
+                    final byte[] value,
+                    final RowLock lock,
+                    final long ttl) {
+
+    this(table, key, family, qualifier, value, KeyValue.TIMESTAMP_NOW, (lock != null) ? lock.id() : RowLock.NO_LOCK, ttl);
+  }
+
+  /**
    * Constructor using current time and an explicit row lock.
    * <strong>These byte arrays will NOT be copied.</strong>
    * @param table The table to edit.
@@ -231,6 +263,29 @@ public final class PutRequest extends BatchableRpc
                     final long timestamp,
                     final RowLock lock) {
     this(table, key, family, qualifier, value, timestamp, lock.id());
+  }
+
+  /**
+   * Constructor using current time and an explicit row lock.
+   * <strong>These byte arrays will NOT be copied.</strong>
+   * @param table The table to edit.
+   * @param key The key of the row to edit in that table.
+   * @param family The column family to edit in that table.
+   * @param qualifier The column qualifier to edit in that family.
+   * @param value The value to store.
+   * @param timestamp The timestamp to set on this edit.
+   * @param lock An explicit row lock to use with this request.
+   * @param ttl The TTL in milli seconds that will be set to the cell.
+   */
+  public PutRequest(final byte[] table,
+                    final byte[] key,
+                    final byte[] family,
+                    final byte[] qualifier,
+                    final byte[] value,
+                    final long timestamp,
+                    final RowLock lock,
+                    final long ttl) {
+    this(table, key, family, qualifier, value, timestamp, (lock != null) ? lock.id() : RowLock.NO_LOCK, ttl);
   }
 
   /**
@@ -258,6 +313,31 @@ public final class PutRequest extends BatchableRpc
   }
 
   /**
+   * Constructor for multiple columns with current time and explicit row lock.
+   * <strong>These byte arrays will NOT be copied.</strong>
+   * @param table The table to edit.
+   * @param key The key of the row to edit in that table.
+   * @param family The column family to edit in that table.
+   * @param qualifiers The column qualifiers to edit in that family.
+   * @param values The corresponding values to store.
+   * @param timestamp The timestamp to set on this edit.
+   * @param lock An explicit row lock to use with this request.
+   * @param ttl The TTL in milli seconds that will be set to the cell.
+   * @throws IllegalArgumentException if {@code qualifiers.length == 0}
+   * or if {@code qualifiers.length != values.length}
+   */
+  public PutRequest(final byte[] table,
+                    final byte[] key,
+                    final byte[] family,
+                    final byte[][] qualifiers,
+                    final byte[][] values,
+                    final long timestamp,
+                    final RowLock lock,
+                    final long ttl) {
+    this(table, key, family, qualifiers, values, timestamp, (lock != null) ? lock.id() : RowLock.NO_LOCK, ttl);
+  }
+
+  /**
    * Convenience constructor from strings (higher overhead).
    * <p>
    * Note: If you want to set your own timestamp, use
@@ -279,6 +359,32 @@ public final class PutRequest extends BatchableRpc
     this(table.getBytes(), key.getBytes(), family.getBytes(),
          qualifier.getBytes(), value.getBytes(),
          KeyValue.TIMESTAMP_NOW, RowLock.NO_LOCK);
+  }
+
+  /**
+   * Convenience constructor from strings (higher overhead).
+   * <p>
+   * Note: If you want to set your own timestamp, use
+   * {@link #PutRequest(byte[], byte[], byte[], byte[], byte[], long)}
+   * instead.  This constructor will let the RegionServer assign the timestamp
+   * to this write at the time using {@link System#currentTimeMillis} right
+   * before the write is persisted to the WAL.
+   * @param table The table to edit.
+   * @param key The key of the row to edit in that table.
+   * @param family The column family to edit in that table.
+   * @param qualifier The column qualifier to edit in that family.
+   * @param value The value to store.
+   * @param ttl The TTL in milli seconds that will be set to the cell.
+   */
+  public PutRequest(final String table,
+                    final String key,
+                    final String family,
+                    final String qualifier,
+                    final String value,
+                    final long ttl) {
+    this(table.getBytes(), key.getBytes(), family.getBytes(),
+            qualifier.getBytes(), value.getBytes(),
+            KeyValue.TIMESTAMP_NOW, RowLock.NO_LOCK, ttl);
   }
 
   /**
@@ -308,6 +414,34 @@ public final class PutRequest extends BatchableRpc
   }
 
   /**
+   * Convenience constructor with explicit row lock (higher overhead).
+   * <p>
+   * Note: If you want to set your own timestamp, use
+   * {@link #PutRequest(byte[], byte[], byte[], byte[], byte[], long, RowLock)}
+   * instead.  This constructor will let the RegionServer assign the timestamp
+   * to this write at the time using {@link System#currentTimeMillis} right
+   * before the write is persisted to the WAL.
+   * @param table The table to edit.
+   * @param key The key of the row to edit in that table.
+   * @param family The column family to edit in that table.
+   * @param qualifier The column qualifier to edit in that family.
+   * @param value The value to store.
+   * @param lock An explicit row lock to use with this request.
+   * @param ttl The TTL in milli seconds that will be set to the cell.
+   */
+  public PutRequest(final String table,
+                    final String key,
+                    final String family,
+                    final String qualifier,
+                    final String value,
+                    final RowLock lock,
+                    final long ttl) {
+    this(table.getBytes(), key.getBytes(), family.getBytes(),
+            qualifier.getBytes(), value.getBytes(),
+            KeyValue.TIMESTAMP_NOW, lock.id(), ttl);
+  }
+
+  /**
    * Constructor from a {@link KeyValue}.
    * @param table The table to edit.
    * @param kv The {@link KeyValue} to store.
@@ -328,7 +462,21 @@ public final class PutRequest extends BatchableRpc
   public PutRequest(final byte[] table,
                     final KeyValue kv,
                     final RowLock lock) {
-    this(table, kv, lock.id());
+    this(table, kv, lock.id(), 0L);
+  }
+
+  /**
+   * Constructor from a {@link KeyValue} with an explicit row lock.
+   * @param table The table to edit.
+   * @param kv The {@link KeyValue} to store.
+   * @param lock An explicit row lock to use with this request.
+   * @param ttl The TTL in milli seconds that will be set to the cell.
+   */
+  public PutRequest(final byte[] table,
+                    final KeyValue kv,
+                    final RowLock lock,
+                    final long ttl) {
+    this(table, kv, lock.id(), ttl);
   }
 
   /** Private constructor.  */
@@ -338,6 +486,17 @@ public final class PutRequest extends BatchableRpc
     super(table, kv.key(), kv.family(), kv.timestamp(), lockid);
     this.qualifiers = new byte[][] { kv.qualifier() };
     this.values = new byte[][] { kv.value() };
+  }
+
+  /** Private constructor.  */
+  private PutRequest(final byte[] table,
+                     final KeyValue kv,
+                     final long lockid,
+                     final long ttl) {
+    super(table, kv.key(), kv.family(), kv.timestamp(), lockid);
+    this.qualifiers = new byte[][] { kv.qualifier() };
+    this.values = new byte[][] { kv.value() };
+    this.ttl = ttl;
   }
 
   /** Private constructor.  */
@@ -356,15 +515,40 @@ public final class PutRequest extends BatchableRpc
   private PutRequest(final byte[] table,
                      final byte[] key,
                      final byte[] family,
+                     final byte[] qualifier,
+                     final byte[] value,
+                     final long timestamp,
+                     final long lockid,
+                     final long ttl) {
+    this(table, key, family, new byte[][] { qualifier }, new byte[][] { value },
+            timestamp, lockid, ttl);
+  }
+
+  /** Private constructor.  */
+  private PutRequest(final byte[] table,
+                     final byte[] key,
+                     final byte[] family,
                      final byte[][] qualifiers,
                      final byte[][] values,
                      final long timestamp,
                      final long lockid) {
+    this(table, key, family, qualifiers, values, timestamp, lockid, 0L);
+  }
+
+  /** Private constructor.  */
+  private PutRequest(final byte[] table,
+                     final byte[] key,
+                     final byte[] family,
+                     final byte[][] qualifiers,
+                     final byte[][] values,
+                     final long timestamp,
+                     final long lockid,
+                     final long ttl) {
     super(table, key, family, timestamp, lockid);
     KeyValue.checkFamily(family);
     if (qualifiers.length != values.length) {
       throw new IllegalArgumentException("Have " + qualifiers.length
-        + " qualifiers and " + values.length + " values.  Should be equal.");
+              + " qualifiers and " + values.length + " values.  Should be equal.");
     } else if (qualifiers.length == 0) {
       throw new IllegalArgumentException("Need at least one qualifier/value.");
     }
@@ -374,6 +558,7 @@ public final class PutRequest extends BatchableRpc
     }
     this.qualifiers = qualifiers;
     this.values = values;
+    this.ttl = ttl;
   }
 
   @Override
@@ -435,6 +620,7 @@ public final class PutRequest extends BatchableRpc
                                        family, qualifiers, values,
                                        ", timestamp=" + timestamp
                                        + ", lockid=" + lockid
+                                       + ", ttl=" + ttl
                                        + ", durable=" + durable
                                        + ", bufferable=" + super.bufferable);
   }
@@ -511,6 +697,7 @@ public final class PutRequest extends BatchableRpc
     size += key.length;  // The row key.
     size += 8;  // long: Timestamp.
     size += 8;  // long: Lock ID.
+    size += 8;  // long: TTL.
     size += 1;  // bool: Whether or not to write to the WAL.
     size += 4;  // int:  Number of families for which we have edits.
 
@@ -518,7 +705,6 @@ public final class PutRequest extends BatchableRpc
     size += family.length;  // The family.
     size += 4;  // int:  Number of KeyValues that follow.
     size += 4;  // int:  Total number of bytes for all those KeyValues.
-
     size += payloadSize();
 
     return size;
@@ -548,6 +734,14 @@ public final class PutRequest extends BatchableRpc
     if (!durable) {
       put.setDurability(MutationProto.Durability.SKIP_WAL);
     }
+
+    if (ttl > 0) {
+      HBasePB.NameBytesPair.Builder ttlAttribute = HBasePB.NameBytesPair.newBuilder()
+              .setName(TTL_ATTRIBUTE_NAME)
+              .setValue(ByteString.copyFrom(Bytes.fromLong(ttl)));
+      put.addAttribute(ttlAttribute.build());
+    }
+
     return put.build();
   }
 
@@ -557,6 +751,9 @@ public final class PutRequest extends BatchableRpc
     if (server_version < RegionClient.SERVER_VERSION_095_OR_ABOVE) {
       return serializeOld(server_version);
     }
+
+    MutationProto mutationProto = toMutationProto();
+
 
     final MutateRequest req = MutateRequest.newBuilder()
       .setRegion(region.toProtobuf())
@@ -597,6 +794,7 @@ public final class PutRequest extends BatchableRpc
     buf.writeLong(timestamp);  // Timestamp.
 
     buf.writeLong(lockid);    // Lock ID.
+    buf.writeLong(ttl);       // TTL.
     buf.writeByte(durable ? 0x01 : 0x00);  // Whether or not to use the WAL.
 
     buf.writeInt(1);  // Number of families that follow.

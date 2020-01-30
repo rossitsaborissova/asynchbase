@@ -223,6 +223,35 @@ final public class TestIntegration {
   }
 
   /**
+   * Write a value to a HBase column with TTL,
+   * read the column, wait for period equal to TTL and try to read the cell again.
+   */
+  @Test
+  public void putWithTTL() throws Exception {
+    client.setFlushInterval(FAST_FLUSH);
+    byte[] t = table.getBytes();
+    byte[] k = "kprd@ts".getBytes();
+    byte[] f = family.getBytes();
+    // Make the qualifier unique to avoid running into HBASE-9879.
+    byte[] q = ("q" + System.currentTimeMillis()
+            + "-" + System.nanoTime()).getBytes();
+    byte[] v1 = "val1".getBytes();
+    long ttl = 1000L;
+    final PutRequest put = new PutRequest(t, k, f, q, v1, Long.MAX_VALUE, null, ttl);
+    client.put(put).join();
+    final GetRequest get = new GetRequest(t, k, f, q);
+    final ArrayList<KeyValue> kvs = client.get(get).join();
+    assertSizeIs(1, kvs);
+    assertEq("val1", kvs.get(0).value());
+    Thread.sleep(ttl);
+
+    final GetRequest getAfterTTL = new GetRequest(t, k, f, q).maxVersions(1);
+
+    final ArrayList<KeyValue> kvsAfterTTL = client.get(getAfterTTL).join();
+    assertSizeIs(0, kvsAfterTTL);
+  }
+
+  /**
    * Call Append on a column for the first time and validate that it was
    * created.
    */
@@ -314,6 +343,33 @@ final public class TestIntegration {
     assertEq("val2ndv", kv.value());
     final double kvts = kv.timestamp();
     assertEquals(write_time, kvts, 5000.0);  // Within five seconds.
+  }
+
+  /**
+   * Call Append on a column with TTL.
+   */
+  @Test
+  public void appendWithTTL() throws Exception {
+    long ttl = 1000L;
+    final AppendRequest append = new AppendRequest(table, "a2", family, "q", "val", ttl);
+    append.returnResult(true);
+    final AppendRequest append2 = new AppendRequest(table, "a2", family, "q", "2ndv", ttl);
+    append2.returnResult(true);
+    final GetRequest get = new GetRequest(table, "a2", family, "q");
+    final ArrayList<Deferred<Object>> deferreds = new ArrayList<Deferred<Object>>(2);
+    deferreds.add(client.append(append));
+    deferreds.add(client.append(append2));
+    Deferred.group(deferreds).join();
+    final ArrayList<KeyValue> kvs = client.get(get).join();
+    assertSizeIs(1, kvs);
+    final KeyValue kv = kvs.get(0);
+    assertEq("a2", kv.key());
+    assertEq("val2ndv", kv.value());
+    Thread.sleep(ttl);
+
+    final GetRequest getAfterTTL = new GetRequest(table, "a2", family, "q");
+    final ArrayList<KeyValue> kvs2 = client.get(get).join();
+    assertSizeIs(0, kvs2);
   }
 
   @Test
